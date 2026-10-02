@@ -1,5 +1,7 @@
 # vx
 
+[![CI](https://github.com/sevlyar/vx/actions/workflows/ci.yml/badge.svg)](https://github.com/sevlyar/vx/actions/workflows/ci.yml)
+
 Validation for Go values of any shape — scalars, whole structs, and the nested structs, slices, and maps inside them — built from small, composable checks. No dependencies beyond the standard library.
 
 ```go
