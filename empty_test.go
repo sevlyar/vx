@@ -97,14 +97,9 @@ func TestNonEmpty(t *testing.T) {
 	}
 }
 
-// TestEmpty_NestedInAnySlot is a regression test: valueIsEmpty used to
-// compare an interface-kind Value's static type against "zero" instead of
-// the dynamic type it actually holds, so Empty/NonEmpty gave wrong answers
-// for a value reached through an any-typed slot (a []any element, a
-// struct field typed any).
+// TestEmpty_NestedInAnySlot covers the one case of the valueIsEmpty
+// any-slot regression (see TestChecks_NestedInAnySlot for the general
+// valid/invalid sweep) that sweep doesn't: a nil element.
 func TestEmpty_NestedInAnySlot(t *testing.T) {
-	t.Run("Item(Empty) sees int zero as empty", wantNoError(Item(Empty).BindAny().Check([]any{0})))
-	t.Run("Item(NonEmpty) rejects int zero", wantError(Item(NonEmpty).BindAny().Check([]any{0})))
-	t.Run("Item(NonEmpty) accepts non-zero", wantNoError(Item(NonEmpty).BindAny().Check([]any{5})))
 	t.Run("Item(Empty) sees nil element as empty", wantNoError(Item(Empty).BindAny().Check([]any{nil})))
 }
