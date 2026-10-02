@@ -55,7 +55,7 @@ func isPrintableLine(value string) bool {
 		if r == lineSeparator || r == paragraphSeparator {
 			return false
 		}
-		if !(unicode.IsPrint(r) || unicode.Is(unicode.Space, r)) {
+		if !unicode.IsPrint(r) && !unicode.Is(unicode.Space, r) {
 			return false
 		}
 	}
@@ -67,7 +67,7 @@ var PrintableText = Format("PrintableText", isPrintableText)
 
 func isPrintableText(value string) bool {
 	for _, r := range value {
-		if !(unicode.IsPrint(r) || unicode.IsSpace(r)) {
+		if !unicode.IsPrint(r) && !unicode.IsSpace(r) {
 			return false
 		}
 	}
