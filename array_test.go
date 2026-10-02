@@ -84,3 +84,18 @@ func TestLen(t *testing.T) {
 		}
 	})
 }
+
+// TestBindCompound_NestedInAnySlot_Works is a regression test: the
+// late-bind branch of BindCompound used to inspect v.Type() without
+// unwrapping an interface-kind Value first, so Item/Len used on a struct
+// field typed any (or any other any-typed slot) rejected every value with
+// a false type-mismatch error.
+func TestBindCompound_NestedInAnySlot_Works(t *testing.T) {
+	type holder struct{ X any }
+
+	var h holder
+	schema := Structure(&h, Field(&h.X, Item(Gt(0)))).BindAny()
+
+	t.Run("valid slice passes", wantNoError(schema.Check(holder{X: []int{1, 2, 3}})))
+	t.Run("invalid slice still fails", wantError(schema.Check(holder{X: []int{1, -2, 3}})))
+}

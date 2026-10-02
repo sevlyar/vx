@@ -33,6 +33,25 @@ func TestIn(t *testing.T) {
 	})
 }
 
+// TestIn_LateCheck_UncomparableValue_Errors is a regression test: the
+// comparability guard used to run only in the early-bind branch, so a
+// late-bound In (via BindAny, or inside an any-typed field) panicked on an
+// uncomparable value (slice, map, func) instead of returning an error.
+func TestIn_LateCheck_UncomparableValue_Errors(t *testing.T) {
+	wantError(In(1, 2, 3).BindAny().Check([]int{1, 2, 3}))(t)
+}
+
+// TestIn_NestedInAnySlot_UncomparableValue_Errors is a regression test: the
+// late-bind comparability guard checked v.Type(), but an element reached
+// through an any-typed slot (e.g. a []any item) is itself interface-kind,
+// so Type() reports the always-comparable interface type instead of the
+// dynamic value actually being compared, letting an uncomparable value
+// (here a []int) slip through to panic on the map lookup.
+func TestIn_NestedInAnySlot_UncomparableValue_Errors(t *testing.T) {
+	t.Run("uncomparable element", wantError(Item(In(1, 2, 3)).BindAny().Check([]any{1, []int{9}})))
+	t.Run("nil element", wantError(Item(In(1, 2, 3)).BindAny().Check([]any{1, nil})))
+}
+
 func TestIn_ErrorMessageTruncatesLargeSets(t *testing.T) {
 	err := In(1, 2, 3).BindAny().Check(0)
 	if got, want := err.Error(), "value is not one of [1 2 3]"; got != want {

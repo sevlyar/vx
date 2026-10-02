@@ -37,11 +37,24 @@ func mustBeString(t reflect.Type) error {
 	return nil
 }
 
+// lineSeparator and paragraphSeparator are written as rune(0x...), not a
+// '\u...' rune literal: gofmt unescapes a printable \u escape into the
+// literal rune, leaving an invisible character sitting in the source.
+const (
+	lineSeparator      = rune(0x2028) // U+2028 LINE SEPARATOR
+	paragraphSeparator = rune(0x2029) // U+2029 PARAGRAPH SEPARATOR
+)
+
 // PrintableLine checks a string has no non-printable runes, including line breaks.
 var PrintableLine = Format("PrintableLine", isPrintableLine)
 
 func isPrintableLine(value string) bool {
 	for _, r := range value {
+		// Neither IsPrint (control-like category) nor the White_Space
+		// property IsSpace/unicode.Space both use rejects these two.
+		if r == lineSeparator || r == paragraphSeparator {
+			return false
+		}
 		if !(unicode.IsPrint(r) || unicode.Is(unicode.Space, r)) {
 			return false
 		}

@@ -73,6 +73,10 @@ func BindCompound(
 		}
 		validate := late()
 		return func(v reflect.Value) error {
+			v = derefInterface(v)
+			if !v.IsValid() {
+				return ErrNilValue
+			}
 			if err := check(v.Type()); err != nil {
 				return err
 			}

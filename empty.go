@@ -32,6 +32,12 @@ func NonEmpty(t reflect.Type) BoundSchema {
 }
 
 func valueIsEmpty(zero, v reflect.Value) bool {
+	if v.Kind() == reflect.Interface {
+		v = derefInterface(v)
+		if !v.IsValid() {
+			return true // a nil interface is empty
+		}
+	}
 	switch v.Kind() {
 	case reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
 		return v.Len() == 0

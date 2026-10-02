@@ -28,6 +28,14 @@ import (
 	"reflect"
 )
 
+// ErrNilValue is returned by a late-bound check when the value to check,
+// reached through an any-typed slot (a []any element, a map value, a
+// struct field typed any, ...), turns out to be a nil interface. It is a
+// *CheckError (CheckName "NotNil"), not a plain error, so it still
+// contributes its own segment to SchemaPath like any other leaf failure —
+// "NotNil", not the name of whatever check never got to run on a nil value.
+var ErrNilValue = newCheckError("NotNil", "", "value is nil")
+
 // BoundSchema validates a single reflect.Value, already bound to a known type.
 type BoundSchema func(v reflect.Value) error
 
@@ -56,7 +64,7 @@ func (schema Schema) BindAny() BoundSchema {
 }
 
 // BindTypeOf binds schema early, against the type of v (or, if v is a
-// pointer, the type it points to). A value of a different kind passed to
+// pointer, the type it points to). A value of a different type passed to
 // the resulting BoundSchema panics.
 func (schema Schema) BindTypeOf(v any) BoundSchema {
 	buildType := reflect.TypeOf(v)
@@ -65,7 +73,7 @@ func (schema Schema) BindTypeOf(v any) BoundSchema {
 	}
 	validate := schema(buildType)
 	return func(v reflect.Value) error {
-		if v.Kind() != buildType.Kind() {
+		if v.Type() != buildType {
 			panic("invalid type")
 		}
 		return validate(v)
@@ -88,6 +96,10 @@ func BindTypeCheck(check func(t reflect.Type) error, validate BoundSchema) Schem
 			return validate
 		}
 		return func(v reflect.Value) error {
+			v = derefInterface(v)
+			if !v.IsValid() {
+				return ErrNilValue
+			}
 			if err := check(v.Type()); err != nil {
 				return err
 			}
@@ -101,4 +113,17 @@ func BindTypeCheck(check func(t reflect.Type) error, validate BoundSchema) Schem
 // Check time. It is false only for the interface type BindAny binds to.
 func CanCheckEarly(t reflect.Type) bool {
 	return t.Kind() != reflect.Interface
+}
+
+// derefInterface unwraps v if it holds an interface Kind — e.g. an element
+// reached through a []any, a map value, or a struct field typed any —
+// returning the dynamic value inside, or the zero Value if that interface
+// is nil. v.Type() on a Value that is still Kind interface reports the
+// static, always-matching interface type instead of the dynamic one
+// actually being checked, so every late-bound check must unwrap first.
+func derefInterface(v reflect.Value) reflect.Value {
+	if v.Kind() == reflect.Interface {
+		return v.Elem()
+	}
+	return v
 }

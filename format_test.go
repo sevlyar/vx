@@ -61,6 +61,8 @@ func TestIsPrintableLine(t *testing.T) {
 		"line1\nline2": false,
 		"tab\there":    false,
 		"\x00":         false,
+		"line1" + string(lineSeparator) + "line2":      false,
+		"line1" + string(paragraphSeparator) + "line2": false,
 	}
 	for s, want := range cases {
 		if got := isPrintableLine(s); got != want {
@@ -75,6 +77,8 @@ func TestIsPrintableText(t *testing.T) {
 		"line1\nline2": true,
 		"tab\there":    true,
 		"\x00":         false,
+		"line1" + string(lineSeparator) + "line2":      true,
+		"line1" + string(paragraphSeparator) + "line2": true,
 	}
 	for s, want := range cases {
 		if got := isPrintableText(s); got != want {

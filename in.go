@@ -32,6 +32,13 @@ func In(allowed ...any) Schema {
 		},
 		KnownValues: uniq,
 	}
+	notComparable := newCheckError("In", "", "value type must be comparable")
+	lookup := func(v reflect.Value) error {
+		if _, ok := set[v.Interface()]; ok {
+			return nil
+		}
+		return err
+	}
 	return func(t reflect.Type) BoundSchema {
 		if CanCheckEarly(t) {
 			if !t.Comparable() {
@@ -42,12 +49,19 @@ func In(allowed ...any) Schema {
 					panic("the value type doesn't match of known values")
 				}
 			}
+			return lookup
 		}
+		// t is the unbound "any" interface here, so comparability can only
+		// be checked once the concrete value arrives.
 		return func(v reflect.Value) error {
-			if _, ok := set[v.Interface()]; ok {
-				return nil
+			v = derefInterface(v)
+			if !v.IsValid() {
+				return err // a nil interface can't be one of a set of concrete values
 			}
-			return err
+			if !v.Type().Comparable() {
+				return notComparable
+			}
+			return lookup(v)
 		}
 	}
 }
