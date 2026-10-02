@@ -58,7 +58,11 @@ func In(allowed ...any) Schema {
 			if !v.IsValid() {
 				return err // a nil interface can't be one of a set of concrete values
 			}
-			if !v.Type().Comparable() {
+			// v.Comparable(), not v.Type().Comparable(): a struct type with
+			// an any field reports comparable even when the field's actual
+			// dynamic value (e.g. a slice) is not, and comparing it would
+			// still panic. Value.Comparable checks the runtime content too.
+			if !v.Comparable() {
 				return notComparable
 			}
 			return lookup(v)

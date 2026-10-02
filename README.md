@@ -39,7 +39,7 @@ fmt.Println(err)
 
 `Structure` requires a `Field` option for every field; use `vx.AllowUncheckedFields(&p.SomeField)` to opt specific fields out deliberately, rather than leaving them unchecked by accident.
 
-## Binding: early vs. late
+## Binding: early vs late
 
 A `Schema` is a function from a `reflect.Type` to a `BoundSchema`. How you bind it decides when a type mismatch is caught:
 
