@@ -14,6 +14,7 @@ import "github.com/sevlyar/vx"
 - **No dependencies beyond the standard library** — not even for format or regexp checks. Compare `go-playground/validator`'s 7 direct dependencies (including a full locale/translation stack) or `invopop/validation`'s 1.
 - **Checks compose, and a failure's path shows the whole chain, not one flat rule.** `Len(Gt(3))`, `AllOf`/`AnyOf`/`OneOf` nest arbitrarily; `SchemaPath` reconstructs the full chain that fired, e.g. `Field(Name).Len.Gt(3)`, and `DataPath` the exact place in the data, e.g. `Items[2].Name` — no error-string parsing needed for either.
 - **Field selectors and arguments are regular Go code, checked by the compiler.** `vx.Field(&user.Age, vx.Gt(0))` — a typo or type mismatch is a build error, not a validation tag that silently never matches at runtime.
+- **Measured faster, with fewer allocations**, against both libraries named below, on every scenario benchmarked so far — see [Performance](#performance).
 
 See [below](#compared-to-other-validators) for how these hold up against `go-playground/validator` and `invopop/validation` specifically, and what vx doesn't have (yet).
 
@@ -142,11 +143,27 @@ Checked against [`go-playground/validator`](https://github.com/go-playground/val
 | Direct dependencies | ❌ 7 (locales, universal-translator, go-urn, mimetype, x/crypto, x/text, assert) | ⚠️ 1 (govalidator) | ✅ 0 |
 | Rule checked by the compiler? | ❌ no — a malformed tag fails silently or at runtime | ✅ yes | ✅ yes |
 
+### Performance
+
+Benchmarked in an isolated module — not a dependency of `vx` itself, see "no dependencies" above — against the same two libraries, validating a flat struct and a struct with a nested 5-item slice. The one format check in each scenario uses the *exact same compiled regexp* in all three libraries: an earlier pass instead used each library's own built-in email validator and showed a bigger gap, which wasn't a fair reading — `go-playground`'s and `invopop`'s built-in email checks are more thorough (and so more expensive) than a plain regexp. This version isolates framework overhead from validation thoroughness.
+
+`go1.24.4 darwin/arm64, Apple M3`, `go test -bench=. -benchmem -count=3`, numbers stable across runs:
+
+| Scenario | `vx` | `go-playground/validator` | `invopop/validation` |
+|---|---|---|---|
+| Flat struct, valid | **84 ns/op, 0 allocs** | 156 ns/op, 0 allocs (1.9×) | 560–590 ns/op, 18 allocs (7×) |
+| Flat struct, invalid | **47 ns/op, 2 allocs** | 347 ns/op, 10 allocs (7.4×) | 680–720 ns/op, 22 allocs (15×) |
+| Nested struct + 5-item slice, valid | **390 ns/op, 1 alloc** | 1052–1058 ns/op, 22 allocs (2.7×) | 4188–4194 ns/op, 142 allocs (10.7×) |
+
+Two caveats, honestly:
+
+- The "invalid" row isn't purely framework overhead. `vx`'s `Structure` stops at the first failing field by design ("first failure wins"); the other two collect every field's errors by default. Part of that gap is a difference in what's being done, not just how fast.
+- One machine, one run of three scenarios — not a broad performance suite. `invopop/validation`'s much higher allocation count does match the architectural gap noted in the table above: it rebuilds its rule graph on every call, `vx` and `go-playground/validator` don't.
+
 What `vx` doesn't have, honestly:
 
 - ❌ **No struct-tag / data-driven mode.** Rules are Go code; if you need to change validation without recompiling (e.g. rules loaded from JSON/config), this isn't it.
 - ❌ **No built-in i18n/translation of error messages**, unlike `go-playground/validator`'s locale stack.
-- ❌ **No speed/allocation numbers yet.** Both competitors above are mature and have had real-world performance tuning; `vx` hasn't been benchmarked against them. Until that's done, treat performance as unknown, not as an advantage.
 - ❌ **Smaller built-in rule set and a much smaller community** — this is a new library, not a battle-tested one with years of edge cases shaken out.
 
 ## Install
