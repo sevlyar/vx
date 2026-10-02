@@ -146,20 +146,29 @@ Checked against [`go-playground/validator`](https://github.com/go-playground/val
 
 ### Performance
 
-Benchmarked in an isolated module — not a dependency of `vx` itself, see "no dependencies" above — against the same two libraries, validating a flat struct and a struct with a nested 5-item slice. The one format check in each scenario uses the *exact same compiled regexp* in all three libraries: an earlier pass instead used each library's own built-in email validator and showed a bigger gap, which wasn't a fair reading — `go-playground`'s and `invopop`'s built-in email checks are more thorough (and so more expensive) than a plain regexp. This version isolates framework overhead from validation thoroughness.
+Benchmarked in an isolated module — not a dependency of `vx` itself, see "no dependencies" above — against `go-playground/validator`, `invopop/validation`, and [`nobl9/govy`](https://github.com/nobl9/govy) (a newer, generics-based, reflection-free validator — not yet in the table above, but close enough in spirit to be worth a speed comparison), validating a flat struct and a struct with a nested 5-item slice. The one format check in each scenario uses the *exact same compiled regexp* in every library: an earlier pass instead used each library's own built-in email validator and showed a bigger gap, which wasn't a fair reading — `go-playground`'s and `invopop`'s built-in email checks are more thorough (and so more expensive) than a plain regexp. This version isolates framework overhead from validation thoroughness.
+
+`vx` is called as `schema.Check(&data)`, not `schema.Check(data)`: passing a pointer avoids boxing the struct into the `any` parameter, which otherwise costs an allocation for any struct over one machine word (see `BoundSchema.Check`'s doc comment). The other three libraries are each called the way their own benchmarks/docs call them — for `go-playground/validator` that's actually by value, not by pointer, since pointer input measured slower and less allocation-free for it specifically. Each library is shown in its own best light, not forced into one calling convention.
 
 `go1.24.4 darwin/arm64, Apple M3`, `go test -bench=. -benchmem -count=3`, numbers stable across runs:
 
-| Scenario | `vx` | `go-playground/validator` | `invopop/validation` |
-|---|---|---|---|
-| Flat struct, valid | **84 ns/op, 0 allocs** | 156 ns/op, 0 allocs (1.9×) | 560–590 ns/op, 18 allocs (7×) |
-| Flat struct, invalid | **47 ns/op, 2 allocs** | 347 ns/op, 10 allocs (7.4×) | 680–720 ns/op, 22 allocs (15×) |
-| Nested struct + 5-item slice, valid | **390 ns/op, 1 alloc** | 1052–1058 ns/op, 22 allocs (2.7×) | 4188–4194 ns/op, 142 allocs (10.7×) |
+| Scenario | `vx` | `go-playground/validator` | `invopop/validation` | `govy` |
+|---|---|---|---|---|
+| Flat struct, valid | **83 ns/op, 0 allocs** | 154 ns/op, 0 allocs (1.9×) | 566 ns/op, 18 allocs (6.8×) | 144 ns/op, 0 allocs (1.7×) |
+| Flat struct, invalid | **50 ns/op, 2 allocs** | 351 ns/op, 10 allocs (7.0×) | 692 ns/op, 22 allocs (13.8×) | 1358 ns/op, 43 allocs (27.2×) |
+| Nested struct + 5-item slice, valid | **369 ns/op, 0 allocs** | 1063 ns/op, 22 allocs (2.9×) | 4195 ns/op, 142 allocs (11.4×) | 714 ns/op, 0 allocs (1.9×) |
 
-Two caveats, honestly:
+Three caveats, honestly:
 
-- The "invalid" row isn't purely framework overhead. `vx`'s `Structure` stops at the first failing field by design ("first failure wins"); the other two collect every field's errors by default. Part of that gap is a difference in what's being done, not just how fast.
-- One machine, one run of three scenarios — not a broad performance suite. `invopop/validation`'s much higher allocation count does match the architectural gap noted in the table above: it rebuilds its rule graph on every call, `vx` and `go-playground/validator` don't.
+- The "invalid" row isn't purely framework overhead. `vx`'s `Structure` stops at the first failing field by design ("first failure wins"); the other three collect every field's errors by default. Part of that gap is a difference in what's being done, not just how fast. Note also that passing a pointer only zeroes out allocations on the *valid* path — the 2 allocations on the invalid row are the returned `*CompoundCheckError` chain itself, unavoidable since describing a failure means allocating something to describe it.
+- `govy` is genuinely fast and allocation-free on the *valid* path — partly its reflection-free, generics-based design (a generic `Validate[T](value T)` never boxes into `any` the way `vx`'s `Check(val any)` does without a pointer), partly its own merits. It's the slowest of the four on the *invalid* path, by a wide margin, which plausibly comes from its own stated priority: building detailed, templated, per-property error messages costs allocations that a terser error doesn't. Not a flaw so much as a different trade-off than `vx` makes.
+- One machine, one run of three scenarios — not a broad performance suite. `invopop/validation`'s much higher allocation count does match the architectural gap noted in the table above: it rebuilds its rule graph on every call, the other three don't.
+
+Runnable, with the other three libraries as real dependencies, in [`benchmarks/`](benchmarks) — a separate module so they never touch `vx`'s own `go.mod`:
+
+```sh
+cd benchmarks && go test -bench=. -benchmem ./...
+```
 
 What `vx` doesn't have, honestly:
 

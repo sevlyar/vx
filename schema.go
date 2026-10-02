@@ -39,7 +39,10 @@ var ErrNilValue = newCheckError("NotNil", "", "value is nil")
 // BoundSchema validates a single reflect.Value, already bound to a known type.
 type BoundSchema func(v reflect.Value) error
 
-// Check adapts BoundSchema to validate a Go value directly.
+// Check adapts BoundSchema to validate a Go value directly. Passing a
+// pointer, rather than val itself, avoids a heap allocation for boxing val
+// into the any parameter when val is larger than a machine word (most
+// structs): Check indirects through the pointer before validating either way.
 func (v BoundSchema) Check(val any) error {
 	return Validate(val, v)
 }
